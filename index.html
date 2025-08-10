@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Telegram Broadcast</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 20px;
+    }
+    .container {
+      max-width: 500px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    input, textarea, button {
+      width: 100%;
+      margin: 10px 0;
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    button {
+      background: #0077cc;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #005fa3;
+    }
+    #status {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>Telegram Broadcast</h2>
+  <label>Pesan:</label>
+  <textarea id="message" rows="4" placeholder="Tulis pesan untuk broadcast"></textarea>
+
+  <label>Delay Auto Broadcast (menit):</label>
+  <input type="number" id="delay" value="10" min="1">
+
+  <button onclick="startBroadcast()">Kirim Broadcast</button>
+
+  <div id="status"></div>
+</div>
+
+<script>
+  // ====== SETTING ======
+  const BOT_TOKEN = "7650117681:AAE-dNWtl0QjW3o6Sk_WndJWoe-947nimoY";
+  const LIST_ID_URL = "https://raw.githubusercontent.com/username/repo/branch/list_id.txt"; // ganti ke link GitHub raw lu
+  
+  let autoBroadcastInterval = null;
+
+  async function getChatIds() {
+    const res = await fetch(LIST_ID_URL);
+    const text = await res.text();
+    return text.split("\n").map(id => id.trim()).filter(id => id);
+  }
+
+  async function sendMessage(chatId, text) {
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text })
+    });
+  }
+
+  async function broadcastMessage(message) {
+    document.getElementById("status").innerText = "📢 Sedang broadcast...";
+    const chatIds = await getChatIds();
+
+    for (let id of chatIds) {
+      await sendMessage(id, message);
+      await new Promise(r => setTimeout(r, 500)); // jeda 0.5 detik biar gak spam
+    }
+
+    document.getElementById("status").innerText = "✅ Broadcast selesai";
+  }
+
+  function startBroadcast() {
+    const message = document.getElementById("message").value.trim();
+    const delayMinutes = parseInt(document.getElementById("delay").value);
+
+    if (!message) {
+      alert("Pesan tidak boleh kosong");
+      return;
+    }
+
+    // Kirim pertama kali
+    broadcastMessage(message);
+
+    // Hapus interval lama kalau ada
+    if (autoBroadcastInterval) {
+      clearInterval(autoBroadcastInterval);
+    }
+
+    // Set auto broadcast
+    autoBroadcastInterval = setInterval(() => {
+      broadcastMessage(message);
+    }, delayMinutes * 60 * 1000);
+  }
+</script>
+
+</body>
+  </html>
