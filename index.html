@@ -58,14 +58,13 @@
 <script>
   // ====== SETTING ======
   const BOT_TOKEN = "7650117681:AAE-dNWtl0QjW3o6Sk_WndJWoe-947nimoY";
-  const LIST_ID_URL = "https://raw.githubusercontent.com/username/repo/branch/list_id.txt"; // ganti ke link GitHub raw lu
+  const LIST_ID_URL = "https://raw.githubusercontent.com/BimxyzDev/Bot-broadcast/main/id.json"; // ganti ke link raw JSON lu
   
   let autoBroadcastInterval = null;
 
   async function getChatIds() {
     const res = await fetch(LIST_ID_URL);
-    const text = await res.text();
-    return text.split("\n").map(id => id.trim()).filter(id => id);
+    return await res.json(); // JSON array
   }
 
   async function sendMessage(chatId, text) {
@@ -82,7 +81,7 @@
 
     for (let id of chatIds) {
       await sendMessage(id, message);
-      await new Promise(r => setTimeout(r, 500)); // jeda 0.5 detik biar gak spam
+      await new Promise(r => setTimeout(r, 500)); // jeda 0.5 detik
     }
 
     document.getElementById("status").innerText = "✅ Broadcast selesai";
@@ -113,4 +112,4 @@
 </script>
 
 </body>
-  </html>
+</html>
