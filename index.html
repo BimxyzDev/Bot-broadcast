@@ -1,218 +1,518 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Telegram Broadcast</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Telegram Broadcast - Multi Queue</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #e0eafc, #cfdef3);
-      padding: 20px;
-      margin: 0;
+    :root{
+      --primary:#0077cc;
+      --accent:#ff8a00;
+      --danger:#cc0000;
+      --card:#ffffff;
+      --muted:#6b7280;
+      --bg:#f3f6fb;
+      --glass: rgba(255,255,255,0.7);
     }
-    .container {
-      max-width: 550px;
-      margin: auto;
-      background: white;
-      padding: 25px;
-      border-radius: 15px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+      background: linear-gradient(135deg,#e9f0ff,#f7fafc);
+      padding:20px;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
     }
-    h2 {
-      text-align: center;
-      color: #0077cc;
+    .wrap{
+      max-width:900px;
+      margin:0 auto;
     }
-    label {
-      font-weight: bold;
-      margin-top: 10px;
-      display: block;
+    .container{
+      background:var(--card);
+      border-radius:12px;
+      padding:18px;
+      box-shadow:0 8px 30px rgba(16,24,40,0.08);
     }
-    input, textarea, button {
-      width: 100%;
-      margin: 10px 0;
-      padding: 12px;
-      font-size: 16px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      box-sizing: border-box;
+    h1{margin:0 0 10px 0;color:var(--primary);font-size:20px}
+    label{display:block;margin-top:10px;font-weight:600;color:#243244;font-size:13px}
+    input[type="number"], textarea{
+      width:100%; padding:10px;border-radius:8px;border:1px solid #d1d5db;font-size:14px;
     }
-    textarea {
-      resize: none;
+    textarea{resize:none;min-height:80px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .col{flex:1;min-width:150px}
+    .actions{display:flex;gap:10px;margin-top:12px}
+    button{
+      padding:10px 14px;border-radius:8px;border:none;background:var(--primary);color:#fff;cursor:pointer;font-weight:600;
     }
-    button {
-      background: #0077cc;
-      color: white;
-      cursor: pointer;
-      border: none;
-      transition: 0.3s;
+    button.secondary{background:#10b981}
+    button.stop{background:var(--danger)}
+    #status{margin-top:12px;font-weight:600;color:var(--muted)}
+    .panel{
+      margin-top:18px;
+      display:grid;
+      grid-template-columns: 1fr 340px;
+      gap:18px;
     }
-    button:hover {
-      background: #005fa3;
+    .left, .right{background:var(--glass);padding:12px;border-radius:10px}
+    .card{
+      background:white;border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 4px 14px rgba(16,24,40,0.04)
     }
-    .btn-stop {
-      background: #cc0000;
-    }
-    .btn-stop:hover {
-      background: #990000;
-    }
-    #status {
-      margin-top: 15px;
-      font-weight: bold;
-      text-align: center;
-    }
-    .broadcast-list {
-      margin-top: 20px;
-      background: #f9f9f9;
-      padding: 10px;
-      border-radius: 8px;
-      font-size: 14px;
-    }
-    .broadcast-item {
-      border-bottom: 1px solid #ddd;
-      padding: 8px 0;
-    }
-    .broadcast-item:last-child {
-      border-bottom: none;
-    }
-    .success-count {
-      color: green;
-      font-weight: bold;
+    .broadcast-list{max-height:420px;overflow:auto;padding-right:6px}
+    .b-item{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:8px;border:1px solid #eef2f7;margin-bottom:8px}
+    .b-left{display:flex;gap:12px;align-items:center}
+    .badge{width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff}
+    .badge.msg{background:linear-gradient(135deg,var(--primary),#3da0ff)}
+    .b-meta{font-size:13px}
+    .b-meta .title{font-weight:700;color:#0b1220}
+    .b-meta .small{color:var(--muted);font-size:12px;margin-top:4px}
+    .b-right{text-align:right}
+    .countdown{font-weight:800;color:var(--accent);font-size:16px}
+    .status-sending{color:#805ad5;font-weight:700}
+    .status-idle{color:var(--muted)}
+    .pill{display:inline-block;padding:6px 8px;border-radius:999px;font-size:12px;background:#f1f5f9;color:#0b1220;margin-left:8px}
+    .history{font-size:13px;color:var(--muted)}
+    .tiny{font-size:12px;color:var(--muted)}
+    /* scrollbar */
+    .broadcast-list::-webkit-scrollbar{width:8px}
+    .broadcast-list::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:8px}
+    @media(max-width:880px){
+      .panel{grid-template-columns:1fr; }
+      .right{order:2}
     }
   </style>
 </head>
 <body>
+  <div class="wrap">
+    <div class="container">
+      <h1>Telegram Broadcast — Multi Queue</h1>
 
-<div class="container">
-  <h2>Telegram Broadcast</h2>
+      <!-- Form utama (jangan ubah BOT_TOKEN & LIST_ID_URL di script) -->
+      <label>Pesan:</label>
+      <textarea id="message" placeholder="Tulis pesan untuk broadcast ..."></textarea>
 
-  <label>Pesan:</label>
-  <textarea id="message" rows="4" placeholder="Tulis pesan untuk broadcast"></textarea>
+      <div class="row" style="margin-top:6px">
+        <div class="col">
+          <label>Delay (menit)</label>
+          <input id="delay" type="number" value="5" min="1" />
+        </div>
+        <div class="col" style="max-width:220px">
+          <label>Mode</label>
+          <select id="mode" style="width:100%;padding:9px;border-radius:8px;border:1px solid #d1d5db;font-size:14px">
+            <option value="all">Kirim ke semua ID (default)</option>
+            <option value="test">Mode Test (kirim cuma 1 id pertama)</option>
+          </select>
+        </div>
+      </div>
 
-  <label>Delay Auto Broadcast (menit):</label>
-  <input type="number" id="delay" value="10" min="1">
+      <div class="actions">
+        <button id="btnCreate">➕ Tambah Broadcast</button>
+        <button id="btnStopAll" class="stop">⛔ Hentikan Semua</button>
+        <button id="btnClearHistory" class="secondary">🧾 Bersihkan Riwayat</button>
+      </div>
 
-  <button onclick="startBroadcast()">🚀 Kirim Broadcast</button>
-  <button class="btn-stop" onclick="stopBroadcast()">⛔ Stop Broadcast</button>
+      <div id="status">Status: siap</div>
 
-  <div id="status"></div>
+      <div class="panel">
+        <div class="left">
+          <div class="card">
+            <strong>Daftar Broadcast Aktif</strong>
+            <div class="broadcast-list" id="broadcastList"></div>
+            <div class="tiny" style="margin-top:8px">*Setiap broadcast berjalan sendiri sesuai delay. Gunakan tombol ⛔ untuk hentikan satu broadcast.</div>
+          </div>
 
-  <div class="broadcast-list" id="broadcastList">
-    <strong>Riwayat Broadcast:</strong>
-    <div id="broadcastItems"></div>
+          <div class="card">
+            <strong>Riwayat (terakhir)</strong>
+            <div id="historyList" style="margin-top:10px"></div>
+          </div>
+        </div>
+
+        <div class="right">
+          <div style="display:flex;gap:10px;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-weight:800;font-size:16px">Kontrol & Info</div>
+              <div class="tiny" style="margin-top:6px">Pengaturan disimpan otomatis di browser (localStorage).</div>
+            </div>
+            <div style="text-align:right">
+              <div class="tiny">Bot token:</div>
+              <div class="pill">Token dipakai tetap</div>
+            </div>
+          </div>
+
+          <div style="margin-top:14px">
+            <div style="font-weight:700">Preview Pesan</div>
+            <div id="preview" style="margin-top:8px;padding:10px;border-radius:8px;background:#ffffff;border:1px solid #eef2f7;min-height:70px;color:#111"></div>
+          </div>
+
+          <div style="margin-top:12px">
+            <div style="font-weight:700">Cache / Statistik</div>
+            <div class="tiny" style="margin-top:6px">Jumlah Chat ID (cache): <span id="cachedCount">-</span></div>
+            <div class="tiny" style="margin-top:6px">Status koneksi fetch list ID akan terlihat ketika pertama kali kirim.</div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
   </div>
-</div>
 
 <script>
-  // ====== SETTING ======
-  const BOT_TOKEN = "7650117681:AAE-dNWtl0QjW3o6Sk_WndJWoe-947nimoY";
-  const LIST_ID_URL = "https://raw.githubusercontent.com/BimxyzDev/Bot-broadcast/main/id.json";
+/*
+  PERINGATAN: Jangan ubah BOT_TOKEN dan LIST_ID_URL kecuali memang ingin mengganti.
+*/
+const BOT_TOKEN = "7650117681:AAE-dNWtl0QjW3o6Sk_WndJWoe-947nimoY";
+const LIST_ID_URL = "https://raw.githubusercontent.com/BimxyzDev/Bot-broadcast/main/id.json";
 
-  let autoBroadcastInterval = null;
-  let isBroadcasting = false;
+const storageKey = "multiBroadcast_v1"; // key localStorage
+const historyKey = "multiBroadcast_history_v1";
 
-  async function getChatIds() {
-    const res = await fetch(LIST_ID_URL);
-    return await res.json(); // JSON array
+let broadcasts = {};   // id -> broadcast object (in-memory)
+let timers = {};       // id -> interval timer (1s) for countdown
+let sendingFlags = {}; // id -> boolean kalau sedang proses kirim
+let chatIdCache = null; // cache array chat ids
+
+// Helper: load saved broadcasts from localStorage
+function loadFromStorage(){
+  try{
+    const raw = localStorage.getItem(storageKey);
+    if(!raw) return;
+    const arr = JSON.parse(raw);
+    // rebuild map
+    for(const b of arr){
+      // ensure fields exist
+      broadcasts[b.id] = {
+        id: b.id,
+        message: b.message,
+        delayMinutes: b.delayMinutes,
+        nextRun: b.nextRun,
+        lastRun: b.lastRun || null,
+        active: b.active !== false, // default true
+        successCountTotal: b.successCountTotal || 0,
+        lastSuccessCount: b.lastSuccessCount || 0,
+        statusText: b.statusText || 'idle'
+      };
+    }
+  }catch(e){
+    console.error("Load storage error", e);
+  }
+}
+
+// Helper: save broadcasts to storage as array
+function saveToStorage(){
+  const arr = Object.values(broadcasts);
+  localStorage.setItem(storageKey, JSON.stringify(arr));
+}
+
+// History helpers
+function addHistory(entry){
+  try{
+    const raw = localStorage.getItem(historyKey);
+    const arr = raw ? JSON.parse(raw) : [];
+    arr.unshift(entry);
+    if(arr.length > 50) arr.splice(50);
+    localStorage.setItem(historyKey, JSON.stringify(arr));
+    renderHistory();
+  }catch(e){console.error(e)}
+}
+function loadHistory(){
+  try{
+    const raw = localStorage.getItem(historyKey);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){return []}
+}
+function renderHistory(){
+  const history = loadHistory();
+  const el = document.getElementById("historyList");
+  el.innerHTML = "";
+  if(history.length === 0){ el.innerHTML = "<div class='tiny'>Belum ada riwayat.</div>"; return; }
+  for(const h of history.slice(0,20)){
+    const d = document.createElement("div");
+    d.style.padding = "8px";
+    d.style.borderBottom = "1px solid #f1f5f9";
+    d.innerHTML = `<div style="font-weight:700">${escapeHtml(h.message).slice(0,80)}</div>
+                   <div class="tiny">Terkirim: <strong>${h.count}</strong> • Waktu: ${new Date(h.time).toLocaleString()}</div>`;
+    el.appendChild(d);
+  }
+}
+
+// UI render
+function renderBroadcasts(){
+  const list = document.getElementById("broadcastList");
+  list.innerHTML = "";
+  const keys = Object.keys(broadcasts).sort((a,b)=> broadcasts[b].nextRun - broadcasts[a].nextRun);
+  if(keys.length === 0){
+    list.innerHTML = "<div class='tiny'>Belum ada broadcast aktif. Tambah menggunakan form di atas.</div>";
+    document.getElementById("status").innerText = "Status: siap";
+    return;
+  }
+  for(const k of keys){
+    const b = broadcasts[k];
+    const item = document.createElement("div");
+    item.className = "b-item";
+
+    // Left
+    const left = document.createElement("div");
+    left.className = "b-left";
+    const badge = document.createElement("div");
+    badge.className = "badge msg";
+    badge.innerText = (b.message||"").slice(0,2).toUpperCase();
+    const meta = document.createElement("div");
+    meta.className = "b-meta";
+    const title = document.createElement("div");
+    title.className = "title";
+    title.innerText = (b.message.length>60) ? b.message.slice(0,60)+"..." : b.message;
+    const small = document.createElement("div");
+    small.className = "small";
+    small.innerText = `Delay ${b.delayMinutes}m • Total sukses: ${b.successCountTotal}`;
+    meta.appendChild(title);
+    meta.appendChild(small);
+    left.appendChild(badge);
+    left.appendChild(meta);
+
+    // Right
+    const right = document.createElement("div");
+    right.className = "b-right";
+    const countdown = document.createElement("div");
+    countdown.className = "countdown";
+    countdown.id = "cd_"+b.id;
+    countdown.innerText = formatCountdown(b.nextRun - Date.now());
+    const st = document.createElement("div");
+    st.className = (b.statusText === "sending") ? "status-sending" : "status-idle";
+    st.innerText = (b.statusText === "sending") ? "SENDING..." : "Idle";
+    const btnStop = document.createElement("button");
+    btnStop.style.marginTop = "8px";
+    btnStop.style.padding = "6px 8px";
+    btnStop.style.borderRadius = "8px";
+    btnStop.style.background = "#ef4444";
+    btnStop.style.border = "none";
+    btnStop.style.color = "#fff";
+    btnStop.style.cursor = "pointer";
+    btnStop.innerText = "⛔ Stop";
+    btnStop.onclick = ()=> stopSingleBroadcast(b.id);
+
+    right.appendChild(countdown);
+    right.appendChild(st);
+    right.appendChild(btnStop);
+
+    item.appendChild(left);
+    item.appendChild(right);
+    list.appendChild(item);
+  }
+}
+
+// Format milliseconds to mm:ss / dd hh:mm:ss friendly
+function formatCountdown(ms){
+  if(ms <= 0) return "00:00";
+  const s = Math.floor(ms/1000);
+  const days = Math.floor(s / 86400);
+  const hours = Math.floor((s % 86400) / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  if(days>0) return `${days}d ${hours}h`;
+  if(hours>0) return `${hours}h ${mins}m`;
+  return `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+}
+
+// Create new broadcast object and start its timer
+function createBroadcast(message, delayMinutes){
+  const id = 'b_'+Date.now() + '_' + Math.floor(Math.random()*9000+1000);
+  const now = Date.now();
+  const b = {
+    id,
+    message,
+    delayMinutes: Number(delayMinutes),
+    nextRun: now + Number(delayMinutes) * 60 * 1000,
+    lastRun: null,
+    active: true,
+    successCountTotal: 0,
+    lastSuccessCount: 0,
+    statusText: 'idle'
+  };
+  broadcasts[id] = b;
+  saveToStorage();
+  startTimerForBroadcast(id);
+  renderBroadcasts();
+  updatePreview();
+  return id;
+}
+
+// Start countdown timer for one broadcast (updates countdown every 1s)
+// When countdown reaches <=0, trigger sending, then schedule nextRun = now + delay
+function startTimerForBroadcast(id){
+  if(timers[id]) return; // already running
+  timers[id] = setInterval(async ()=>{
+    const b = broadcasts[id];
+    if(!b) { clearInterval(timers[id]); delete timers[id]; return; }
+    // update countdown UI
+    const cdEl = document.getElementById("cd_"+id);
+    if(cdEl) cdEl.innerText = formatCountdown(b.nextRun - Date.now());
+
+    // if it's time and not currently sending
+    if(b.active && !sendingFlags[id] && (Date.now() >= b.nextRun - 50)){
+      // trigger send
+      sendingFlags[id] = true;
+      b.statusText = "sending";
+      updateStatus(`Mengirim broadcast "${b.message.slice(0,30)}..."`);
+      renderBroadcasts();
+      const successCount = await performSendForBroadcast(id);
+      // update stats
+      b.lastRun = Date.now();
+      b.lastSuccessCount = successCount;
+      b.successCountTotal = (b.successCountTotal||0) + successCount;
+      b.nextRun = Date.now() + b.delayMinutes * 60 * 1000;
+      b.statusText = "idle";
+      saveToStorage();
+      // add history entry
+      addHistory({ message: b.message, count: successCount, time: Date.now() });
+      sendingFlags[id] = false;
+      updateStatus(`Selesai kirim "${b.message.slice(0,30)}..." → ${successCount} sukses`);
+      renderBroadcasts();
+    }
+  }, 1000);
+}
+
+// Stop timers and remove broadcast
+function stopSingleBroadcast(id){
+  if(!broadcasts[id]) return;
+  broadcasts[id].active = false;
+  // clear interval
+  if(timers[id]){ clearInterval(timers[id]); delete timers[id]; }
+  // stop sending flag if sending
+  sendingFlags[id] = false;
+  // remove from map
+  delete broadcasts[id];
+  saveToStorage();
+  renderBroadcasts();
+  updateStatus(`Broadcast dihentikan`);
+}
+
+// Stop all broadcasts
+function stopAllBroadcasts(){
+  for(const id in timers){
+    clearInterval(timers[id]);
+    delete timers[id];
+  }
+  broadcasts = {};
+  saveToStorage();
+  renderBroadcasts();
+  updateStatus("Semua broadcast dihentikan");
+}
+
+// Perform actual sending to all chatIds for a broadcast
+async function performSendForBroadcast(id){
+  const b = broadcasts[id];
+  if(!b) return 0;
+  // fetch chat ids (use cache)
+  let chatIds = chatIdCache;
+  try{
+    if(!chatIds){
+      const r = await fetch(LIST_ID_URL);
+      chatIds = await r.json();
+      chatIdCache = chatIds;
+      document.getElementById("cachedCount").innerText = Array.isArray(chatIds) ? chatIds.length : "-";
+    }
+  }catch(e){
+    console.error("Gagal fetch chat id", e);
+    chatIdCache = null;
+    document.getElementById("cachedCount").innerText = "-";
+    return 0;
   }
 
-  async function sendMessage(chatId, text) {
-    try {
+  if(!Array.isArray(chatIds) || chatIds.length === 0) return 0;
+
+  // If mode=test, only first id
+  const mode = document.getElementById("mode").value;
+  if(mode === "test") chatIds = chatIds.slice(0,1);
+
+  let success = 0;
+  for(const cid of chatIds){
+    // allow interruption
+    if(!broadcasts[id]) break; // if stopped/removed
+    try{
+      // call telegram sendMessage
       const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text })
+        body: JSON.stringify({ chat_id: cid, text: b.message })
       });
-      return res.ok;
-    } catch {
-      return false;
+      if(res.ok) success++;
+    }catch(err){
+      // ignore individual errors
     }
+    // small delay between messages
+    await new Promise(r => setTimeout(r, 500));
   }
+  return success;
+}
 
-  async function broadcastMessage(message) {
-    document.getElementById("status").innerText = "📢 Sedang broadcast...";
-    const chatIds = await getChatIds();
-    let successCount = 0;
+// UI: update preview
+function updatePreview(){
+  const msg = document.getElementById("message").value.trim();
+  document.getElementById("preview").innerText = msg ? msg : "(kosong)";
+}
 
-    for (let id of chatIds) {
-      if (!isBroadcasting) break;
-      const success = await sendMessage(id, message);
-      if (success) successCount++;
-      await new Promise(r => setTimeout(r, 500)); // jeda 0.5 detik
-    }
+// Status bar text
+function updateStatus(txt){
+  document.getElementById("status").innerText = "Status: " + txt;
+}
 
-    if (isBroadcasting) {
-      document.getElementById("status").innerText = `✅ Broadcast selesai - Berhasil terkirim ke ${successCount} grup`;
-      addBroadcastHistory(message, successCount);
-    }
+// Escape HTML for safe display
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]; });
+}
+
+// Initialize timers for saved broadcasts
+function initAllTimers(){
+  // clear old timers if any
+  for(const id in timers){ clearInterval(timers[id]); delete timers[id]; }
+  for(const id in broadcasts){
+    startTimerForBroadcast(id);
   }
+  renderBroadcasts();
+  renderHistory();
+}
 
-  function startBroadcast() {
-    const message = document.getElementById("message").value.trim();
-    const delayMinutes = parseInt(document.getElementById("delay").value);
+// Attach handlers
+document.getElementById("btnCreate").addEventListener("click", ()=>{
+  const msg = document.getElementById("message").value.trim();
+  const delay = Math.max(1, Number(document.getElementById("delay").value) || 1);
+  if(!msg){ alert("Pesan tidak boleh kosong"); return; }
+  createBroadcast(msg, delay);
+  document.getElementById("message").value = ""; updatePreview();
+});
 
-    if (!message) {
-      alert("Pesan tidak boleh kosong");
-      return;
-    }
+document.getElementById("btnStopAll").addEventListener("click", ()=>{
+  if(confirm("Hentikan semua broadcast aktif?")) stopAllBroadcasts();
+});
 
-    isBroadcasting = true;
+document.getElementById("btnClearHistory").addEventListener("click", ()=>{
+  if(confirm("Bersihkan riwayat broadcast?")){ localStorage.removeItem(historyKey); renderHistory(); }
+});
 
-    // Simpan setting ke localStorage
-    localStorage.setItem("broadcastMessage", message);
-    localStorage.setItem("broadcastDelay", delayMinutes);
+document.getElementById("message").addEventListener("input", updatePreview);
 
-    // Kirim pertama kali
-    broadcastMessage(message);
+// disable ctrl+wheel zoom etc (already meta in head but double-protect)
+document.addEventListener('wheel', e => { if(e.ctrlKey) e.preventDefault(); }, { passive:false });
+document.addEventListener('keydown', e => {
+  if(e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=')) e.preventDefault();
+});
 
-    // Hapus interval lama kalau ada
-    if (autoBroadcastInterval) {
-      clearInterval(autoBroadcastInterval);
-    }
-
-    // Set auto broadcast
-    autoBroadcastInterval = setInterval(() => {
-      broadcastMessage(message);
-    }, delayMinutes * 60 * 1000);
-
-    document.getElementById("status").innerText = `⏳ Auto broadcast setiap ${delayMinutes} menit dimulai...`;
+// On load: load saved broadcasts and start timers
+window.addEventListener("load", async ()=>{
+  loadFromStorage();
+  // update cachedCount if possible (non-blocking)
+  try{
+    const r = await fetch(LIST_ID_URL);
+    const ids = await r.json();
+    chatIdCache = ids;
+    document.getElementById("cachedCount").innerText = Array.isArray(ids) ? ids.length : "-";
+  }catch(e){
+    document.getElementById("cachedCount").innerText = "-";
   }
-
-  function stopBroadcast() {
-    isBroadcasting = false;
-    if (autoBroadcastInterval) {
-      clearInterval(autoBroadcastInterval);
-    }
-    document.getElementById("status").innerText = "⛔ Broadcast dihentikan";
-  }
-
-  function addBroadcastHistory(message, successCount) {
-    const list = document.getElementById("broadcastItems");
-    const item = document.createElement("div");
-    item.classList.add("broadcast-item");
-    item.innerHTML = `<div><strong>Pesan:</strong> ${message}</div>
-                      <div class="success-count">✅ Terkirim ke ${successCount} grup</div>`;
-    list.prepend(item);
-  }
-
-  // Load setting dari localStorage saat halaman dibuka
-  window.onload = () => {
-    const savedMessage = localStorage.getItem("broadcastMessage");
-    const savedDelay = localStorage.getItem("broadcastDelay");
-    if (savedMessage) document.getElementById("message").value = savedMessage;
-    if (savedDelay) document.getElementById("delay").value = savedDelay;
-  };
-
-  // Disable zoom via keyboard
-  document.addEventListener('wheel', e => {
-    if (e.ctrlKey) e.preventDefault();
-  }, { passive: false });
-  document.addEventListener('keydown', e => {
-    if ((e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=')) || e.key === 'Meta') {
-      e.preventDefault();
-    }
-  });
+  // render preview from message if any saved in storage? we'll not auto fill message input to avoid accidental resend.
+  renderHistory();
+  initAllTimers();
+});
 </script>
-
 </body>
-</html>
+  </html>
