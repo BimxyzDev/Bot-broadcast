@@ -2,40 +2,81 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Telegram Broadcast</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f4f4f4;
+      background: linear-gradient(135deg, #e0eafc, #cfdef3);
       padding: 20px;
+      margin: 0;
     }
     .container {
-      max-width: 500px;
+      max-width: 550px;
       margin: auto;
       background: white;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    }
+    h2 {
+      text-align: center;
+      color: #0077cc;
+    }
+    label {
+      font-weight: bold;
+      margin-top: 10px;
+      display: block;
     }
     input, textarea, button {
       width: 100%;
       margin: 10px 0;
-      padding: 10px;
+      padding: 12px;
       font-size: 16px;
       border: 1px solid #ccc;
-      border-radius: 5px;
+      border-radius: 8px;
+      box-sizing: border-box;
+    }
+    textarea {
+      resize: none;
     }
     button {
       background: #0077cc;
       color: white;
       cursor: pointer;
+      border: none;
+      transition: 0.3s;
     }
     button:hover {
       background: #005fa3;
     }
+    .btn-stop {
+      background: #cc0000;
+    }
+    .btn-stop:hover {
+      background: #990000;
+    }
     #status {
       margin-top: 15px;
+      font-weight: bold;
+      text-align: center;
+    }
+    .broadcast-list {
+      margin-top: 20px;
+      background: #f9f9f9;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .broadcast-item {
+      border-bottom: 1px solid #ddd;
+      padding: 8px 0;
+    }
+    .broadcast-item:last-child {
+      border-bottom: none;
+    }
+    .success-count {
+      color: green;
       font-weight: bold;
     }
   </style>
@@ -44,23 +85,31 @@
 
 <div class="container">
   <h2>Telegram Broadcast</h2>
+
   <label>Pesan:</label>
   <textarea id="message" rows="4" placeholder="Tulis pesan untuk broadcast"></textarea>
 
   <label>Delay Auto Broadcast (menit):</label>
   <input type="number" id="delay" value="10" min="1">
 
-  <button onclick="startBroadcast()">Kirim Broadcast</button>
+  <button onclick="startBroadcast()">🚀 Kirim Broadcast</button>
+  <button class="btn-stop" onclick="stopBroadcast()">⛔ Stop Broadcast</button>
 
   <div id="status"></div>
+
+  <div class="broadcast-list" id="broadcastList">
+    <strong>Riwayat Broadcast:</strong>
+    <div id="broadcastItems"></div>
+  </div>
 </div>
 
 <script>
   // ====== SETTING ======
   const BOT_TOKEN = "7650117681:AAE-dNWtl0QjW3o6Sk_WndJWoe-947nimoY";
-  const LIST_ID_URL = "https://raw.githubusercontent.com/BimxyzDev/Bot-broadcast/main/id.json"; // ganti ke link raw JSON lu
-  
+  const LIST_ID_URL = "https://raw.githubusercontent.com/BimxyzDev/Bot-broadcast/main/id.json";
+
   let autoBroadcastInterval = null;
+  let isBroadcasting = false;
 
   async function getChatIds() {
     const res = await fetch(LIST_ID_URL);
@@ -68,23 +117,34 @@
   }
 
   async function sendMessage(chatId, text) {
-    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text })
-    });
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text })
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
 
   async function broadcastMessage(message) {
     document.getElementById("status").innerText = "📢 Sedang broadcast...";
     const chatIds = await getChatIds();
+    let successCount = 0;
 
     for (let id of chatIds) {
-      await sendMessage(id, message);
+      if (!isBroadcasting) break;
+      const success = await sendMessage(id, message);
+      if (success) successCount++;
       await new Promise(r => setTimeout(r, 500)); // jeda 0.5 detik
     }
 
-    document.getElementById("status").innerText = "✅ Broadcast selesai";
+    if (isBroadcasting) {
+      document.getElementById("status").innerText = `✅ Broadcast selesai - Berhasil terkirim ke ${successCount} grup`;
+      addBroadcastHistory(message, successCount);
+    }
   }
 
   function startBroadcast() {
@@ -95,6 +155,12 @@
       alert("Pesan tidak boleh kosong");
       return;
     }
+
+    isBroadcasting = true;
+
+    // Simpan setting ke localStorage
+    localStorage.setItem("broadcastMessage", message);
+    localStorage.setItem("broadcastDelay", delayMinutes);
 
     // Kirim pertama kali
     broadcastMessage(message);
@@ -108,7 +174,44 @@
     autoBroadcastInterval = setInterval(() => {
       broadcastMessage(message);
     }, delayMinutes * 60 * 1000);
+
+    document.getElementById("status").innerText = `⏳ Auto broadcast setiap ${delayMinutes} menit dimulai...`;
   }
+
+  function stopBroadcast() {
+    isBroadcasting = false;
+    if (autoBroadcastInterval) {
+      clearInterval(autoBroadcastInterval);
+    }
+    document.getElementById("status").innerText = "⛔ Broadcast dihentikan";
+  }
+
+  function addBroadcastHistory(message, successCount) {
+    const list = document.getElementById("broadcastItems");
+    const item = document.createElement("div");
+    item.classList.add("broadcast-item");
+    item.innerHTML = `<div><strong>Pesan:</strong> ${message}</div>
+                      <div class="success-count">✅ Terkirim ke ${successCount} grup</div>`;
+    list.prepend(item);
+  }
+
+  // Load setting dari localStorage saat halaman dibuka
+  window.onload = () => {
+    const savedMessage = localStorage.getItem("broadcastMessage");
+    const savedDelay = localStorage.getItem("broadcastDelay");
+    if (savedMessage) document.getElementById("message").value = savedMessage;
+    if (savedDelay) document.getElementById("delay").value = savedDelay;
+  };
+
+  // Disable zoom via keyboard
+  document.addEventListener('wheel', e => {
+    if (e.ctrlKey) e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=')) || e.key === 'Meta') {
+      e.preventDefault();
+    }
+  });
 </script>
 
 </body>
